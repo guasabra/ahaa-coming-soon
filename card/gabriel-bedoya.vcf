@@ -1,0 +1,14 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Bedoya;Gabriel;;;
+FN:Gabriel Bedoya
+ORG:Ahaa! Market
+TITLE:Founder
+TEL;TYPE=CELL,VOICE:+13050000000
+EMAIL;TYPE=INTERNET:gabriel@ahaamarket.com
+URL:https://ahaamarket.com
+URL;TYPE=Instagram:https://instagram.com/ahaamarket
+URL;TYPE=LinkedIn:https://www.linkedin.com/in/gabrielbedoya
+ADR;TYPE=WORK:;;;Miami;FL;;USA
+NOTE:Founder de Ahaa! Market — el supermercado latino curado.
+END:VCARD
