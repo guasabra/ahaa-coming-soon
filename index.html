@@ -33,7 +33,7 @@ h1 em{font-style:normal;color:var(--lima)}
 form{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;width:min(560px,100%);margin:0 auto}
 input[type=email]{flex:1;min-width:220px;font:inherit;font-size:16px;padding:16px 18px;border:2.5px solid var(--negro);background:var(--crema);color:var(--negro);outline:none;box-shadow:inset 3px 3px 0 #e2d8c4}
 input[type=email]:focus{box-shadow:0 0 0 3px var(--fucsia)}
-button.cta{font-family:"Bungee","Arial Black",sans-serif;font-size:14px;letter-spacing:.04em;padding:16px 24px;background:var(--fucsia);color:#fff;border:2.5px solid var(--negro);box-shadow:4px 4px 0 var(--negro);cursor:pointer;transition:transform .12s ease-out,box-shadow .12s ease-out}
+button.cta{font-family:"Bungee","Arial Black",sans-serif;font-size:14px;letter-spacing:.04em;padding:16px 24px;background:var(--fucsia);color:var(--negro);border:2.5px solid var(--negro);box-shadow:4px 4px 0 var(--negro);cursor:pointer;transition:transform .12s ease-out,box-shadow .12s ease-out}
 button.cta:hover{box-shadow:6px 6px 0 var(--negro)}
 button.cta:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--negro)}
 .fine{font-size:13px;color:#6B6257;margin-top:14px}
@@ -65,15 +65,16 @@ html.en [data-en]{display:revert}
 
  <div class="soon"><span data-es>MUY PRONTO</span><span data-en>COMING SOON</span></div>
 
- <!-- Replace the action URL with your form endpoint (Formspree, Mailchimp, GoDaddy Marketing, etc.) -->
- <form id="signup" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+ <form id="signup" method="POST" novalidate>
   <input type="email" name="email" required placeholder="tu@email.com" autocomplete="email">
-  <button class="cta" type="submit"><span data-es>AVÍSAME</span><span data-en>TELL ME</span></button>
-  <input type="hidden" name="_subject" value="Ahaa! — nuevo registro">
+  <button class="cta" type="submit" id="cta"><span data-es>AVÍSAME</span><span data-en>TELL ME</span></button>
+  <!-- Honeypot. A person never sees this; a bot fills every field it finds. -->
+  <input class="hp" type="text" name="_hp" tabindex="-1" autocomplete="off" aria-hidden="true">
  </form>
  <p class="fine" data-es>Déjanos tu correo y te avisamos primero. Una sola vez, cuando abramos.</p>
  <p class="fine" data-en>Leave your email and you'll hear first. Once, when we open.</p>
- <div class="ok" id="ok"><span data-es>¡Ahaa! Te avisamos.</span><span data-en>Ahaa! We'll let you know.</span></div>
+ <div class="ok" id="ok" role="status"><span data-es>¡Ahaa! Te avisamos.</span><span data-en>Ahaa! We'll let you know.</span></div>
+ <div class="err" id="err" role="alert"><span data-es>No pudimos guardar tu correo. Inténtalo otra vez.</span><span data-en>We couldn't save your email. Please try again.</span></div>
 </main>
 
 <footer>
@@ -84,11 +85,68 @@ html.en [data-en]{display:revert}
 <script>
 function setLang(l){document.documentElement.classList.toggle('en',l==='en');document.documentElement.lang=l;document.querySelectorAll('header button').forEach(b=>b.classList.toggle('on',b.textContent.toLowerCase()===l));try{localStorage.setItem('ahaa-lang',l)}catch(e){}}
 try{var s=localStorage.getItem('ahaa-lang');if(s){setLang(s)}else if(!/^es/i.test(navigator.language||'')){setLang('en')}}catch(e){}
-document.getElementById('signup').addEventListener('submit',function(e){
- var f=this; if(f.action.indexOf('YOUR_FORM_ID')>-1){e.preventDefault();f.style.display='none';document.getElementById('ok').style.display='block';return}
- e.preventDefault();
- fetch(f.action,{method:'POST',body:new FormData(f),headers:{'Accept':'application/json'}}).then(function(r){if(r.ok){f.style.display='none';document.getElementById('ok').style.display='block'}else{f.submit()}}).catch(function(){f.submit()});
-});
+/* Sign-up.
+   ONE place to configure: WEB3FORMS_KEY below. The key is a public UUID meant
+   to sit in HTML — it identifies the destination inbox without revealing the
+   address, so the e-mail never gets scraped off this page.
+   Get one at https://web3forms.com (enter the inbox, they mail you the key).
+
+   This never fakes success. The previous version showed "¡Ahaa! Te avisamos."
+   whether or not anything was saved, and every address left here was lost. */
+var WEB3FORMS_KEY = '50a9d194-e5cc-4736-9fd8-40f633a939a4';
+var ENDPOINT = 'https://api.web3forms.com/submit';
+
+(function(){
+ var form = document.getElementById('signup');
+ var ok = document.getElementById('ok');
+ var err = document.getElementById('err');
+ var cta = document.getElementById('cta');
+
+ function fail(msg){
+  err.style.display = 'block';
+  if (msg) { try { console.error('[ahaa signup]', msg); } catch(e){} }
+  cta.disabled = false;
+ }
+
+ form.addEventListener('submit', function(e){
+  e.preventDefault();
+  err.style.display = 'none';
+
+  var email = form.email.value.trim();
+  if (!email || email.indexOf('@') < 1) { form.email.focus(); return; }
+
+  /* Bot: accept silently, store nothing. Telling it apart helps nobody. */
+  if (form._hp.value) { form.style.display='none'; ok.style.display='block'; return; }
+
+  if (WEB3FORMS_KEY.indexOf('PASTE_') === 0) {
+   return fail('No access key configured — the form is not saving anything yet.');
+  }
+
+  cta.disabled = true;
+
+  fetch(ENDPOINT, {
+   method: 'POST',
+   headers: {'Content-Type':'application/json', 'Accept':'application/json'},
+   body: JSON.stringify({
+    access_key: WEB3FORMS_KEY,
+    subject: 'Ahaa! — nuevo registro: ' + email,
+    from_name: 'Ahaa! coming-soon',
+    email: email,
+    /* Context worth having when the list is imported into `signups` later. */
+    lang: document.documentElement.lang || 'es',
+    source: 'coming-soon',
+    referrer: document.referrer || ''
+   })
+  })
+  .then(function(r){ return r.json().then(function(b){ return {ok: r.ok && b.success, body: b}; }); })
+  .then(function(res){
+   if (!res.ok) return fail(res.body && res.body.message);
+   form.style.display = 'none';
+   ok.style.display = 'block';
+  })
+  .catch(function(e){ fail(e && e.message); });
+ });
+})();
 </script>
 </body>
 </html>
